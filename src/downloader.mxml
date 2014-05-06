@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:WindowedApplication xmlns:fx="http://ns.adobe.com/mxml/2009" xmlns:s="library://ns.adobe.com/flex/spark" xmlns:mx="library://ns.adobe.com/flex/mx" creationComplete="windowedapplication1_creationCompleteHandler(event)">
+	<fx:Script>
+		<![CDATA[
+			import com.junkbyte.console.Cc;
+			
+			import mx.collections.ArrayList;
+			import mx.events.FlexEvent;
+			
+			import spark.events.IndexChangeEvent;
+
+			private var path:String;
+			private var cursor:int;
+
+			private var datas:Array;
+
+			private var nComplete:int;
+			private var nFailure:int;
+
+			protected function windowedapplication1_creationCompleteHandler(event:FlexEvent):void {
+				Cc.startOnStage(this, '`');
+			}
+
+			private function load():void {
+				nComplete = 0;
+				nFailure = 0;
+				lstComplete.dataProvider = new ArrayList;
+				lstFailure.dataProvider = new ArrayList;
+
+				try {
+					var f:File = new File(filePath.text);
+					var fs:FileStream = new FileStream();
+					fs.open(f, FileMode.READ);
+					var data:String = fs.readUTFBytes(fs.bytesAvailable);
+				} catch (e:Error) {
+				} finally {
+					fs.close();
+				}
+
+				datas = data.split('\n');
+
+				cursor = 0;
+				prgrs.minimum = 0;
+				prgrs.maximum = datas.length;
+				next();
+			}
+
+			private function loadCursor(cursor:int):void {
+				path = datas[cursor];
+				current.text = path;
+
+				var request:URLRequest = new URLRequest(path);
+				request.requestHeaders = [
+					//,new URLRequestHeader('Host','app100657741.imgcache.qzoneapp.com')
+					new URLRequestHeader('Connection','keep-alive')
+//					,new URLRequestHeader('Cache-Control','no-cache')
+					,new URLRequestHeader('Accept','text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8')
+//					,new URLRequestHeader('Pragma','no-cache')
+					,new URLRequestHeader('User-Agent','Mozilla/5.0 (Windows NT 6.2; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/34.0.1847.131 Safari/537.36')
+					,new URLRequestHeader('Accept-Encoding','gzip,deflate,sdch')
+					,new URLRequestHeader('Accept-Language','en-US,en;q=0.8')
+					,new URLRequestHeader('Cookie','pgv_pvid=6650825005')
+
+					,new URLRequestHeader('Referer','')
+					,new URLRequestHeader('x-flash-version','')
+				];
+				var loader:URLLoader = new URLLoader;
+				loader.dataFormat = URLLoaderDataFormat.BINARY;
+				loader.addEventListener(Event.COMPLETE, completeHandler);
+				loader.addEventListener(Event.OPEN, openHandler);
+				loader.addEventListener(ProgressEvent.PROGRESS, progressHandler);
+				loader.addEventListener(SecurityErrorEvent.SECURITY_ERROR, securityErrorHandler);
+				loader.addEventListener(HTTPStatusEvent.HTTP_STATUS, httpStatusHandler);
+				loader.addEventListener(IOErrorEvent.IO_ERROR, ioErrorHandler);
+				loader.load(request);
+			}
+
+			protected function completeHandler(event:Event):void {
+				trace("downloader.completeHandler(event)");
+
+				var loader:URLLoader = event.target as URLLoader;
+				Cc.logch('complete', path);
+				nComplete++;
+				lstComplete.dataProvider.addItem(path);
+				try {
+					var index:int = path.indexOf('?');
+					if (index > -1)
+						path = path.substr(0, index);
+//                    path = path.substr(path.lastIndexOf('/') + 1);
+					path = path.substr('http://'.length);
+					var f:File = new File(folderPath.text + '/' + path);
+					var fs:FileStream = new FileStream();
+					fs.open(f, FileMode.WRITE);
+					fs.writeBytes(loader.data);
+				} catch (e:Error) {
+				} finally {
+					fs.close();
+				}
+				next();
+			}
+
+			protected function openHandler(event:Event):void {
+				trace("downloader.openHandler(event)");
+			}
+
+			protected function progressHandler(event:ProgressEvent):void {
+				trace("downloader.progressHandler(event)");
+			}
+
+			protected function securityErrorHandler(event:SecurityErrorEvent):void {
+				trace("downloader.securityErrorHandler(event)");
+			}
+
+			protected function httpStatusHandler(event:HTTPStatusEvent):void {
+				trace("downloader.httpStatusHandler(event)");
+			}
+
+			protected function ioErrorHandler(event:IOErrorEvent):void {
+				trace("downloader.ioErrorHandler(event)", path);
+				Cc.logch('failure', path);
+				nFailure++;
+				lstFailure.dataProvider.addItem(path);
+				next();
+			}
+
+			protected function fileBtn_clickHandler(event:MouseEvent):void {
+				var btn:Button = event.currentTarget as Button;
+				if (btn == fileBtn) {
+					var f:File = new File;
+					f.addEventListener(Event.SELECT, onFileSelected);
+					f.browseForOpen('');
+				} else if (btn == folderBtn) {
+					f = new File;
+					f.addEventListener(Event.SELECT, onFolderSelected);
+					f.browseForDirectory('');
+				} else {
+					load();
+				}
+
+			}
+
+			protected function onFileSelected(event:Event):void {
+				filePath.text = event.currentTarget.nativePath;
+			}
+
+			protected function onFolderSelected(event:Event):void {
+				folderPath.text = event.currentTarget.nativePath;
+			}
+
+			private function next():void {
+				this.status = datas.length + ':' + nComplete + ':' + nFailure;
+				prgrs.setProgress(cursor, datas.length);
+				prgrs.label = "Current Progress: " + (cursor / datas.length * 100).toFixed(1) + "%";
+
+				if (cursor == datas.length)
+					current.text = '';
+				else
+					loadCursor(cursor++);
+			}
+			
+			protected function lstFailure_changeHandler(event:IndexChangeEvent):void
+			{
+				System.setClipboard(lstFailure.selectedItem);
+			}
+			
+		]]>
+	</fx:Script>
+	<fx:Declarations>
+		<!-- 将非可视元素（例如服务、值对象）放在此处 -->
+	</fx:Declarations>
+	<s:HGroup x="10" y="7" verticalAlign="middle">
+		<s:Label text="url文件"/>
+		<s:TextInput id="filePath"/>
+		<s:Button id="fileBtn" label="..." click="fileBtn_clickHandler(event)"/>
+	</s:HGroup>
+	<s:HGroup x="10" y="41" verticalAlign="middle">
+		<s:Label text="资源下载目录"/>
+		<s:TextInput id="folderPath"/>
+		<s:Button id="folderBtn" label="..." click="fileBtn_clickHandler(event)"/>
+	</s:HGroup>
+	<s:Button id="doBtn" x="5" y="199" label="开始" click="fileBtn_clickHandler(event)"/>
+	<mx:ProgressBar id="prgrs" x="6" y="135" mode="manual"/>
+	<s:Label id="current" x="10" y="115" text="标签"/>
+	<s:List id="lstComplete" x="326" y="10" width="345"></s:List>
+	<s:List id="lstFailure" x="326" y="130" width="345" change="lstFailure_changeHandler(event)"></s:List>
+</s:WindowedApplication>
